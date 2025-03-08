@@ -9,7 +9,7 @@ on:
 jobs:
   sast_scan:
     name: Run SAST Scan
-    runs-on: ubuntu-20.04  # ✅ Works for both Ubuntu 20.04 & 24.04
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Checkout code
@@ -39,17 +39,23 @@ jobs:
 
   image_scan:
     name: Build Image and Run Image Scan
-    runs-on: ubuntu-latest  # ✅ Works with latest Ubuntu
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Docker
-        uses: docker/setup-buildx-action@v2  # ✅ Uses the latest official Docker setup action
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub  # ✅ Ensure authentication before Docker Scout
+        run: echo "${{ secrets.REPO_PWD }}" | docker login -u "${{ secrets.REPO_USER }}" --password-stdin
 
       - name: Build Docker Image
         run: docker build -f Dockerfile -t pygoat_app:latest .
+
+      - name: Push Docker Image to Docker Hub  # ✅ Needed for Docker Scout to analyze
+        run: docker tag pygoat_app:latest ${{ secrets.REPO_USER }}/pygoat_app:latest && docker push ${{ secrets.REPO_USER }}/pygoat_app:latest
 
       - name: Docker Scout Scan
         uses: docker/scout-action@v1.15.0
@@ -59,6 +65,9 @@ jobs:
           command: quickview,cves
           only-severities: critical,high
           sarif-file: scout-report.sarif
+          summary: true
+          format: json
+          write-comment: true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4.4.3
